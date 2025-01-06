@@ -10,6 +10,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [currentJobId, setCurrentJobId] = useState('')
+  const [progress, setProgress] = useState<string>('')
 
   const pollJobStatus = async (jobId: string, type: 'analyze' | 'convert') => {
     try {
@@ -23,6 +24,7 @@ export default function Home() {
 
       if (data.status === 'completed') {
         setLoading(false)
+        setProgress('')
         if (type === 'analyze') {
           setBlog(data.result)
         } else {
@@ -31,6 +33,8 @@ export default function Home() {
         setCurrentJobId('')
         return true
       } else if (data.status === 'pending') {
+        // Update progress message
+        setProgress(type === 'analyze' ? 'Analyzing repository...' : 'Converting to thread...')
         // Continue polling
         setTimeout(() => pollJobStatus(jobId, type), 5000)
         return false
@@ -39,6 +43,7 @@ export default function Home() {
       }
     } catch (error) {
       setLoading(false)
+      setProgress('')
       setError(error instanceof Error ? error.message : String(error))
       setCurrentJobId('')
       return true
@@ -49,6 +54,7 @@ export default function Home() {
     e.preventDefault()
     setError('')
     setLoading(true)
+    setProgress('Starting analysis...')
     setBlog('')
     setThread('')
 
@@ -71,6 +77,7 @@ export default function Home() {
       pollJobStatus(data.job_id, 'analyze')
     } catch (error) {
       setLoading(false)
+      setProgress('')
       setError(error instanceof Error ? error.message : String(error))
     }
   }
@@ -79,6 +86,7 @@ export default function Home() {
     if (!blog) return
     setError('')
     setLoading(true)
+    setProgress('Starting conversion...')
     setThread('')
 
     try {
@@ -100,6 +108,7 @@ export default function Home() {
       pollJobStatus(data.job_id, 'convert')
     } catch (error) {
       setLoading(false)
+      setProgress('')
       setError(error instanceof Error ? error.message : String(error))
     }
   }
@@ -107,7 +116,8 @@ export default function Home() {
   const handleCopyBlog = async () => {
     try {
       await navigator.clipboard.writeText(blog)
-      // Optionally show a success message
+      setError('Blog content copied to clipboard!')
+      setTimeout(() => setError(''), 3000)
     } catch (error) {
       setError('Failed to copy blog content')
     }
@@ -116,7 +126,8 @@ export default function Home() {
   const handleCopyThread = async () => {
     try {
       await navigator.clipboard.writeText(thread)
-      // Optionally show a success message
+      setError('Thread content copied to clipboard!')
+      setTimeout(() => setError(''), 3000)
     } catch (error) {
       setError('Failed to copy thread content')
     }
@@ -135,6 +146,7 @@ export default function Home() {
             placeholder="Enter GitHub repository URL"
             className="flex-1 p-2 border rounded"
             required
+            disabled={loading}
           />
           <button
             type="submit"
@@ -146,8 +158,19 @@ export default function Home() {
         </div>
       </form>
 
+      {progress && (
+        <div className="mb-8 p-4 bg-blue-100 text-blue-700 rounded flex items-center justify-center">
+          <div className="mr-3 h-4 w-4 animate-spin rounded-full border-2 border-blue-700 border-t-transparent"></div>
+          {progress}
+        </div>
+      )}
+
       {error && (
-        <div className="mb-8 p-4 bg-red-100 text-red-700 rounded">
+        <div className={`mb-8 p-4 rounded ${
+          error.includes('copied to clipboard') 
+            ? 'bg-green-100 text-green-700' 
+            : 'bg-red-100 text-red-700'
+        }`}>
           {error}
         </div>
       )}
@@ -159,7 +182,8 @@ export default function Home() {
             <div className="flex gap-4">
               <button
                 onClick={handleCopyBlog}
-                className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                disabled={loading}
+                className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 disabled:bg-gray-400"
               >
                 Copy Blog
               </button>
@@ -184,7 +208,8 @@ export default function Home() {
             <h2 className="text-2xl font-bold">Generated Thread</h2>
             <button
               onClick={handleCopyThread}
-              className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+              disabled={loading}
+              className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 disabled:bg-gray-400"
             >
               Copy Thread
             </button>
