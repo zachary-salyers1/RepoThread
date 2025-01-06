@@ -98,118 +98,83 @@ editor = Agent(
     )
 )
 
-@app.post("/analyze")
-async def analyze_repository(request: RepoRequest) -> RepoResponse:
+@app.post("/analyze", response_model=RepoResponse)
+async def analyze_repository(request: RepoRequest):
     try:
-        # Tasks
-        analyze_repository_task = Task(
-            description=f"Analyze the repository at {request.repo_url} to extract structure, features, and purpose.",
-            expected_output="Detailed insights into the repository, including code snippets.",
-            agent=repository_analyst,
+        # Create tasks for the crew
+        analyze_repo = Task(
+            description=f"Analyze the GitHub repository at {request.repo_url}. Focus on understanding its purpose, main features, and technical implementation.",
+            agent=repository_analyst
         )
 
-        write_tutorial_task = Task(
-            description="Draft a step-by-step tutorial based on the repository analysis. Ensure examples highlight repository usage.",
-            expected_output="A markdown-formatted tutorial with setup and usage details.",
-            agent=tutorial_writer,
+        write_tutorial = Task(
+            description="Write a detailed tutorial based on the repository analysis. Include code examples and explanations.",
+            agent=tutorial_writer
         )
 
-        seo_optimization_task = Task(
-            description="Optimize the tutorial for SEO by adding keywords, headings, and metadata, ensuring no technical details are lost.",
-            expected_output="An SEO-optimized tutorial ready for publishing, preserving technical accuracy.",
-            agent=seo_specialist,
+        optimize_seo = Task(
+            description="Optimize the tutorial content for SEO while maintaining technical accuracy.",
+            agent=seo_specialist
         )
 
-        format_blog_post_task = Task(
-            description="Adapt the tutorial into an SEO-friendly blog post with repository-focused narratives and examples.",
-            expected_output="A markdown-formatted blog post, ready for publishing, that highlights the repository's features and use cases.",
-            agent=blog_post_creator,
+        create_blog = Task(
+            description="Transform the SEO-optimized tutorial into a well-structured blog post.",
+            agent=blog_post_creator
         )
 
-        # Crew
+        # Create and run the crew
         crew = Crew(
             agents=[repository_analyst, tutorial_writer, seo_specialist, blog_post_creator],
-            tasks=[
-                analyze_repository_task,
-                write_tutorial_task,
-                seo_optimization_task,
-                format_blog_post_task,
-            ],
-            process=Process.sequential
+            tasks=[analyze_repo, write_tutorial, optimize_seo, create_blog],
+            verbose=True
         )
 
-        # Execute
-        result = crew.kickoff(inputs={"repo_url": request.repo_url})
-        
-        # Convert CrewAI output to string and clean up markdown formatting
+        # Execute the crew's tasks
+        result = crew.kickoff(
+            context={
+                "repo_url": request.repo_url
+            }
+        )
+
+        # Convert CrewAI output to string
         blog_content = str(result.raw) if hasattr(result, 'raw') else str(result)
-        # Remove markdown code block markers and clean up
-        blog_content = blog_content.replace('```markdown', '').replace('```', '').strip()
         
         return RepoResponse(blog=blog_content, success=True)
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/convert")
-async def convert_to_thread(request: BlogRequest) -> ThreadResponse:
+@app.post("/convert", response_model=ThreadResponse)
+async def convert_to_thread(request: BlogRequest):
     try:
-        # Tasks
-        analyze_blog_task = Task(
-            description=(
-                f"Analyze the following blog post and break it into key sections with main ideas. "
-                f"The final thread should be approximately {request.num_tweets} tweets long.\n\n"
-                f"BLOG CONTENT:\n{request.blog_content}"
-            ),
-            expected_output="A structured summary of the specific blog post provided, with key points and highlights.",
+        # Create tasks for the crew
+        analyze_content = Task(
+            description=f"Analyze this blog post and break it down into {request.num_tweets} tweets. Focus on maintaining coherence while fitting Twitter's character limit.",
             agent=content_analyst
         )
 
-        write_thread_task = Task(
-            description=(
-                f"Using the analysis provided, create a Twitter thread of approximately {request.num_tweets} tweets. "
-                "Write each tweet clearly and concisely, keeping the thread engaging without hashtags. "
-                "Use actual content and examples from the blog post."
-            ),
-            expected_output="A series of tweets that accurately represent the provided blog content.",
-            agent=thread_writer
-        )
-
-        edit_thread_task = Task(
-            description=(
-                f"Review the drafted tweets and ensure they accurately reflect the original blog content. "
-                f"The thread should be approximately {request.num_tweets} tweets long. "
-                "Refine their structure, language, and transitions while maintaining the original message."
-            ),
-            expected_output="A finalized Twitter thread that faithfully represents the original blog post.",
-            agent=editor
-        )
-
-        # Crew Setup
+        # Create and run the crew
         crew = Crew(
-            agents=[content_analyst, thread_writer, editor],
-            tasks=[analyze_blog_task, write_thread_task, edit_thread_task],
-            process=Process.sequential
+            agents=[content_analyst],
+            tasks=[analyze_content],
+            verbose=True
         )
 
-        # Execute with the blog content
+        # Execute the crew's tasks
         result = crew.kickoff(
-            inputs={
-                'blog_content': request.blog_content
+            context={
+                "blog_content": request.blog_content,
+                "num_tweets": request.num_tweets
             }
         )
-        
-        # Convert CrewOutput to string and clean up formatting
+
+        # Convert CrewAI output to string
         thread_content = str(result.raw) if hasattr(result, 'raw') else str(result)
-        # Remove any markdown code block markers if present
-        thread_content = thread_content.replace('```markdown', '').replace('```', '').strip()
         
         return ThreadResponse(thread=thread_content, success=True)
+
     except Exception as e:
-        print(f"Error processing blog to thread: {str(e)}")
-        raise HTTPException(
-            status_code=500, 
-            detail=f"Failed to convert blog to thread: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
