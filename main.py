@@ -5,6 +5,9 @@ from pydantic import BaseModel
 from crewai import Agent, Task, Crew, Process
 from dotenv import load_dotenv
 from typing import Optional
+import sqlite3
+import uuid
+from datetime import datetime
 
 # Load environment variables
 load_dotenv()
@@ -23,21 +26,41 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Initialize database
+def init_db():
+    conn = sqlite3.connect('repothread.db')
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS jobs (
+            id TEXT PRIMARY KEY,
+            type TEXT NOT NULL,
+            status TEXT NOT NULL,
+            input TEXT NOT NULL,
+            result TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+init_db()
+
 # Request/Response Models
 class RepoRequest(BaseModel):
     repo_url: str
 
 class BlogRequest(BaseModel):
     blog_content: str
-    num_tweets: int = 14  # Default to 14 tweets if not specified
+    num_tweets: int = 14
 
-class RepoResponse(BaseModel):
-    blog: str
-    success: bool
+class JobResponse(BaseModel):
+    job_id: str
+    status: str
 
-class ThreadResponse(BaseModel):
-    thread: str
-    success: bool
+class JobResult(BaseModel):
+    status: str
+    result: Optional[str] = None
 
 # Agents
 repository_analyst = Agent(
@@ -104,115 +127,155 @@ editor = Agent(
     )
 )
 
-@app.post("/analyze", response_model=RepoResponse)
+def save_job(job_type: str, input_data: str) -> str:
+    job_id = str(uuid.uuid4())
+    conn = sqlite3.connect('repothread.db')
+    c = conn.cursor()
+    c.execute(
+        'INSERT INTO jobs (id, type, status, input) VALUES (?, ?, ?, ?)',
+        (job_id, job_type, 'pending', input_data)
+    )
+    conn.commit()
+    conn.close()
+    return job_id
+
+def get_job_status(job_id: str) -> JobResult:
+    conn = sqlite3.connect('repothread.db')
+    c = conn.cursor()
+    c.execute('SELECT status, result FROM jobs WHERE id = ?', (job_id,))
+    row = c.fetchone()
+    conn.close()
+    
+    if not row:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    return JobResult(status=row[0], result=row[1])
+
+def update_job_result(job_id: str, result: str):
+    conn = sqlite3.connect('repothread.db')
+    c = conn.cursor()
+    c.execute(
+        'UPDATE jobs SET status = ?, result = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        ('completed', result, job_id)
+    )
+    conn.commit()
+    conn.close()
+
+@app.post("/analyze", response_model=JobResponse)
 async def analyze_repository(request: RepoRequest):
     try:
-        # Create tasks for the crew
-        analyze_repo = Task(
-            description=f"""Create a comprehensive analysis of the repository at {request.repo_url}.
-            
-            Include the following sections:
-            1. Project Overview
-            2. Key Features
-            3. Technical Implementation
-            4. Setup Instructions
-            5. Usage Examples
-            
-            Base your analysis on standard GitHub repository structures and best practices.
-            Focus on creating valuable documentation that helps users understand the project.""",
-            agent=repository_analyst
-        )
-
-        write_tutorial = Task(
-            description="""Transform the repository analysis into a detailed tutorial.
-            
-            Structure the tutorial with:
-            1. Introduction
-            2. Prerequisites
-            3. Installation Steps
-            4. Usage Guide
-            5. Code Examples
-            6. Best Practices
-            7. Troubleshooting
-            
-            Make it easy to follow while maintaining technical accuracy.""",
-            agent=tutorial_writer
-        )
-
-        optimize_seo = Task(
-            description="""Optimize the tutorial for search engines while preserving technical accuracy.
-            
-            Focus on:
-            1. Title optimization
-            2. Header structure
-            3. Keyword placement
-            4. Meta description
-            5. Content organization
-            
-            Ensure the technical content remains accurate and valuable.""",
-            agent=seo_specialist
-        )
-
-        create_blog = Task(
-            description="""Transform the SEO-optimized tutorial into an engaging blog post.
-            
-            Include:
-            1. Engaging introduction
-            2. Clear sections
-            3. Code examples
-            4. Practical tips
-            5. Conclusion with next steps
-            
-            Make it interesting while keeping the technical details accurate.""",
-            agent=blog_post_creator
-        )
-
-        # Create and run the crew
-        crew = Crew(
-            agents=[repository_analyst, tutorial_writer, seo_specialist, blog_post_creator],
-            tasks=[analyze_repo, write_tutorial, optimize_seo, create_blog],
-            verbose=True
-        )
-
-        # Execute the crew's tasks
-        result = crew.kickoff()
-
-        # Convert CrewAI output to string
-        blog_content = str(result.raw) if hasattr(result, 'raw') else str(result)
+        # Save job to database
+        job_id = save_job('analyze', request.repo_url)
         
-        return RepoResponse(blog=blog_content, success=True)
+        # Start background task to process the repository
+        # Note: In a production environment, you'd want to use a proper task queue like Celery
+        # For now, we'll process it in a separate thread
+        import threading
+        def process_repo():
+            try:
+                # Create tasks for the crew
+                analyze_repo = Task(
+                    description=f"""Create a comprehensive analysis of the repository at {request.repo_url}.
+                    Include the following sections:
+                    1. Project Overview
+                    2. Key Features
+                    3. Technical Implementation
+                    4. Setup Instructions
+                    5. Usage Examples""",
+                    agent=repository_analyst
+                )
+
+                write_tutorial = Task(
+                    description="""Transform the repository analysis into a detailed tutorial.""",
+                    agent=tutorial_writer
+                )
+
+                optimize_seo = Task(
+                    description="""Optimize the tutorial for search engines while preserving technical accuracy.""",
+                    agent=seo_specialist
+                )
+
+                create_blog = Task(
+                    description="""Transform the SEO-optimized tutorial into an engaging blog post.""",
+                    agent=blog_post_creator
+                )
+
+                # Create and run the crew
+                crew = Crew(
+                    agents=[repository_analyst, tutorial_writer, seo_specialist, blog_post_creator],
+                    tasks=[analyze_repo, write_tutorial, optimize_seo, create_blog],
+                    verbose=True
+                )
+
+                # Execute the crew's tasks
+                result = crew.kickoff()
+
+                # Convert CrewAI output to string
+                blog_content = str(result.raw) if hasattr(result, 'raw') else str(result)
+                
+                # Update job with result
+                update_job_result(job_id, blog_content)
+            except Exception as e:
+                # Update job with error
+                update_job_result(job_id, f"Error: {str(e)}")
+        
+        # Start processing in background
+        thread = threading.Thread(target=process_repo)
+        thread.start()
+        
+        return JobResponse(job_id=job_id, status='pending')
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/convert", response_model=ThreadResponse)
+@app.post("/convert", response_model=JobResponse)
 async def convert_to_thread(request: BlogRequest):
     try:
-        # Create tasks for the crew
-        analyze_content = Task(
-            description=f"""Analyze this blog post and break it down into {request.num_tweets} tweets. 
-            Focus on maintaining coherence while fitting Twitter's character limit.
-            Blog content to analyze: {request.blog_content}""",
-            agent=content_analyst
-        )
-
-        # Create and run the crew
-        crew = Crew(
-            agents=[content_analyst],
-            tasks=[analyze_content],
-            verbose=True
-        )
-
-        # Execute the crew's tasks
-        result = crew.kickoff()
-
-        # Convert CrewAI output to string
-        thread_content = str(result.raw) if hasattr(result, 'raw') else str(result)
+        # Save job to database
+        job_id = save_job('convert', request.blog_content)
         
-        return ThreadResponse(thread=thread_content, success=True)
+        # Start background task to process the blog
+        import threading
+        def process_blog():
+            try:
+                # Create tasks for the crew
+                analyze_content = Task(
+                    description=f"""Analyze this blog post and break it down into {request.num_tweets} tweets.
+                    Blog content to analyze: {request.blog_content}""",
+                    agent=content_analyst
+                )
+
+                # Create and run the crew
+                crew = Crew(
+                    agents=[content_analyst],
+                    tasks=[analyze_content],
+                    verbose=True
+                )
+
+                # Execute the crew's tasks
+                result = crew.kickoff()
+
+                # Convert CrewAI output to string
+                thread_content = str(result.raw) if hasattr(result, 'raw') else str(result)
+                
+                # Update job with result
+                update_job_result(job_id, thread_content)
+            except Exception as e:
+                # Update job with error
+                update_job_result(job_id, f"Error: {str(e)}")
+        
+        # Start processing in background
+        thread = threading.Thread(target=process_blog)
+        thread.start()
+        
+        return JobResponse(job_id=job_id, status='pending')
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/jobs/{job_id}", response_model=JobResult)
+async def get_job(job_id: str):
+    return get_job_status(job_id)
 
 if __name__ == "__main__":
     import uvicorn
