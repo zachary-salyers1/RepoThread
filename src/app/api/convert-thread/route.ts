@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     }
 
     // Forward the request to the Python FastAPI server
-    const response = await fetch('http://127.0.0.1:8001/convert', {
+    const response = await fetch('https://blog-to-thread.onrender.com/convert', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
