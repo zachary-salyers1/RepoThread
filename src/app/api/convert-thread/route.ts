@@ -12,7 +12,8 @@ export async function POST(request: Request) {
     }
 
     // Forward the request to the Python FastAPI server
-    const response = await fetch('https://repothread-api.onrender.com/convert', {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+    const response = await fetch(`${apiUrl}/convert`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

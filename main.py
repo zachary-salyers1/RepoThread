@@ -1,5 +1,6 @@
 import os
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from crewai import Agent, Task, Crew, Process
 from dotenv import load_dotenv
@@ -9,6 +10,18 @@ from typing import Optional
 load_dotenv()
 
 app = FastAPI(title="RepoThread API")
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://repothread.vercel.app",  # Your Vercel production domain
+        "http://localhost:3000",          # Local development
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Request/Response Models
 class RepoRequest(BaseModel):
