@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     }
 
     // Forward the request to the Python FastAPI server
-    const response = await fetch('https://repo-to-blog.onrender.com/analyze', {
+    const response = await fetch('https://repothread-api.onrender.com/analyze', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

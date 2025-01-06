@@ -1,22 +1,9 @@
 services:
   - type: web
-    name: repo-to-blog
+    name: repothread-api
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn repotoblog:app --host 0.0.0.0 --port $PORT
-    envVars:
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: SERPER_API_KEY
-        sync: false
-      - key: PYTHON_VERSION
-        value: 3.11.0
-
-  - type: web
-    name: blog-to-thread
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn blogtothread:app --host 0.0.0.0 --port $PORT
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: OPENAI_API_KEY
         sync: false
