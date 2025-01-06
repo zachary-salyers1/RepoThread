@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from "@/components/ui/button"
 
 export default function Home() {
   const [repoUrl, setRepoUrl] = useState('')
@@ -9,13 +8,13 @@ export default function Home() {
   const [thread, setThread] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [currentJobId, setCurrentJobId] = useState('')
+  const [jobId, setJobId] = useState('')
   const [progress, setProgress] = useState<string>('')
 
-  const pollJobStatus = async (jobId: string, type: 'analyze' | 'convert') => {
+  const pollJobStatus = async (id: string, type: 'analyze' | 'convert') => {
     try {
       const endpoint = type === 'analyze' ? '/api/analyze' : '/api/convert-thread'
-      const response = await fetch(`${endpoint}?jobId=${jobId}`)
+      const response = await fetch(`${endpoint}?jobId=${id}`)
       const data = await response.json()
 
       if (!response.ok) {
@@ -30,22 +29,22 @@ export default function Home() {
         } else {
           setThread(data.result)
         }
-        setCurrentJobId('')
+        setJobId('')
         return true
       } else if (data.status === 'pending') {
         // Update progress message
         setProgress(type === 'analyze' ? 'Analyzing repository...' : 'Converting to thread...')
         // Continue polling
-        setTimeout(() => pollJobStatus(jobId, type), 5000)
+        setTimeout(() => pollJobStatus(id, type), 5000)
         return false
       } else {
         throw new Error('Job failed: ' + data.result)
       }
-    } catch (error) {
+    } catch (err) {
       setLoading(false)
       setProgress('')
-      setError(error instanceof Error ? error.message : String(error))
-      setCurrentJobId('')
+      setError(err instanceof Error ? err.message : String(err))
+      setJobId('')
       return true
     }
   }
@@ -73,12 +72,12 @@ export default function Home() {
         throw new Error(data.error || 'Failed to analyze repository')
       }
 
-      setCurrentJobId(data.job_id)
+      setJobId(data.job_id)
       pollJobStatus(data.job_id, 'analyze')
-    } catch (error) {
+    } catch (err) {
       setLoading(false)
       setProgress('')
-      setError(error instanceof Error ? error.message : String(error))
+      setError(err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -104,12 +103,12 @@ export default function Home() {
         throw new Error(data.error || 'Failed to convert blog to thread')
       }
 
-      setCurrentJobId(data.job_id)
+      setJobId(data.job_id)
       pollJobStatus(data.job_id, 'convert')
-    } catch (error) {
+    } catch (err) {
       setLoading(false)
       setProgress('')
-      setError(error instanceof Error ? error.message : String(error))
+      setError(err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -118,8 +117,9 @@ export default function Home() {
       await navigator.clipboard.writeText(blog)
       setError('Blog content copied to clipboard!')
       setTimeout(() => setError(''), 3000)
-    } catch (error) {
+    } catch (err) {
       setError('Failed to copy blog content')
+      setTimeout(() => setError(''), 3000)
     }
   }
 
@@ -128,8 +128,9 @@ export default function Home() {
       await navigator.clipboard.writeText(thread)
       setError('Thread content copied to clipboard!')
       setTimeout(() => setError(''), 3000)
-    } catch (error) {
+    } catch (err) {
       setError('Failed to copy thread content')
+      setTimeout(() => setError(''), 3000)
     }
   }
 
