@@ -1,0 +1,13 @@
+model_list:
+  - model_name: "fake-openai-endpoint"
+    litellm_params:
+      model: aiohttp_openai/any
+      api_base: https://example-openai-endpoint.onrender.com/chat/completions
+      api_key: "ishaan"
+
+general_settings:
+  key_management_system: "hashicorp_vault" # 👈 KEY CHANGE
+  key_management_settings: 
+    store_virtual_keys: true # OPTIONAL. Defaults to False, when True will store virtual keys in secret manager
+    prefix_for_stored_virtual_keys: "litellm/" # OPTIONAL. If set, this prefix will be used for stored virtual keys in the secret manager
+    access_mode: "write_only" # Literal["read_only", "write_only", "read_and_write"]
