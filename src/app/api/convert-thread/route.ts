@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-export const maxDuration = 300 // Set maximum duration to 300 seconds (5 minutes)
+export const maxDuration = 60 // Set maximum duration to 60 seconds (Vercel Hobby plan limit)
 export const dynamic = 'force-dynamic' // Disable static optimization
 
 export async function POST(request: Request) {
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     // Forward the request to the Python FastAPI server
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 290000) // 290 seconds timeout
+    const timeoutId = setTimeout(() => controller.abort(), 55000) // 55 seconds timeout
 
     const response = await fetch(`${apiUrl}/convert`, {
       method: 'POST',
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     console.error('Error:', error)
     if (error instanceof Error && error.name === 'AbortError') {
       return NextResponse.json(
-        { error: 'Request timed out. The conversion is taking longer than expected.' },
+        { error: 'Request timed out. Please try again with a shorter blog post or upgrade to a plan with longer timeouts.' },
         { status: 504 }
       )
     }
