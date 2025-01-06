@@ -4,11 +4,19 @@ from pydantic import BaseModel
 from crewai import Agent, Task, Crew, Process
 from dotenv import load_dotenv
 import uvicorn
+from langchain_openai import ChatOpenAI
 
 # Load environment variables
 load_dotenv()
 
 app = FastAPI()
+
+# Initialize OpenAI
+openai = ChatOpenAI(
+    model="gpt-4-turbo-preview",
+    temperature=0.7,
+    api_key=os.environ.get("OPENAI_API_KEY")
+)
 
 class BlogRequest(BaseModel):
     blog_content: str
@@ -26,7 +34,8 @@ content_analyst = Agent(
     backstory=(
         "An experienced content strategist who excels at identifying core ideas from long-form content. "
         "You're skilled at structuring information to make it easier to consume."
-    )
+    ),
+    llm=openai
 )
 
 thread_writer = Agent(
@@ -36,7 +45,8 @@ thread_writer = Agent(
     backstory=(
         "A creative writer who specializes in crafting Twitter threads that capture attention. "
         "You excel at making complex ideas simple and engaging without using hashtags."
-    )
+    ),
+    llm=openai
 )
 
 editor = Agent(
@@ -46,7 +56,8 @@ editor = Agent(
     backstory=(
         "A meticulous editor with a sharp eye for detail. You're dedicated to improving readability and flow "
         "to deliver polished content that's ready for publication."
-    )
+    ),
+    llm=openai
 )
 
 @app.post("/convert")
@@ -55,31 +66,32 @@ async def convert_to_thread(request: BlogRequest) -> ThreadResponse:
         # Tasks
         analyze_blog_task = Task(
             description=(
-                f"Analyze the following blog post and break it into key sections with main ideas. "
+                "Analyze the following blog post and break it into key sections with main ideas. "
                 f"The final thread should be approximately {request.num_tweets} tweets long.\n\n"
-                f"BLOG CONTENT:\n{request.blog_content}"
+                f"Blog Content:\n{request.blog_content}"
             ),
-            expected_output="A structured summary of the specific blog post provided, with key points and highlights.",
+            expected_output="A structured summary of the blog post, with key points and highlights.",
             agent=content_analyst
         )
 
         write_thread_task = Task(
             description=(
-                f"Using the analysis provided, create a Twitter thread of approximately {request.num_tweets} tweets. "
-                "Write each tweet clearly and concisely, keeping the thread engaging without hashtags. "
-                "Use actual content and examples from the blog post."
+                "Based on the analysis, create a Twitter thread of approximately "
+                f"{request.num_tweets} tweets. Each tweet should be clear and concise, "
+                "keeping the thread engaging without hashtags. Use actual content and "
+                "examples from the blog post."
             ),
-            expected_output="A series of tweets that accurately represent the provided blog content.",
+            expected_output="A series of tweets that accurately represent the blog content.",
             agent=thread_writer
         )
 
         edit_thread_task = Task(
             description=(
-                f"Review the drafted tweets and ensure they accurately reflect the original blog content. "
-                f"The thread should be approximately {request.num_tweets} tweets long. "
-                "Refine their structure, language, and transitions while maintaining the original message."
+                "Review and polish the drafted tweets to ensure they accurately reflect "
+                f"the original blog content in approximately {request.num_tweets} tweets. "
+                "Focus on clarity, flow, and maintaining the original message."
             ),
-            expected_output="A finalized Twitter thread that faithfully represents the original blog post.",
+            expected_output="A finalized Twitter thread that faithfully represents the blog post.",
             agent=editor
         )
 
