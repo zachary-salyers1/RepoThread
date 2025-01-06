@@ -42,29 +42,35 @@ class ThreadResponse(BaseModel):
 # Agents
 repository_analyst = Agent(
     role="Repository Analyst",
-    goal="Analyze GitHub repositories and document insights.",
-    backstory="Expert in code analysis and repository breakdowns.",
+    goal="Analyze GitHub repositories and create comprehensive documentation.",
+    backstory="""Expert in code analysis and documentation. You analyze repositories by examining their structure,
+    code patterns, and documentation. You don't need external tools - just work with the information provided
+    in the repository URL and create documentation based on best practices and your expertise.""",
     verbose=True
 )
 
 tutorial_writer = Agent(
     role="Tutorial Writer",
-    goal="Write structured tutorials for repositories.",
-    backstory="Technical writer skilled at simplifying complex concepts.",
+    goal="Transform repository analysis into clear tutorials.",
+    backstory="""Technical writer specializing in creating tutorials from repository analysis.
+    You take the repository information and create step-by-step guides that explain the project's
+    purpose, features, and implementation details.""",
     verbose=True
 )
 
 seo_specialist = Agent(
     role="SEO Specialist",
-    goal="Optimize tutorial content for SEO without changing the technical focus.",
-    backstory="SEO expert focused on enhancing readability without sacrificing technical accuracy.",
+    goal="Optimize content for search engines while maintaining technical accuracy.",
+    backstory="""SEO expert who enhances content visibility while preserving technical details.
+    You optimize titles, headings, and content structure to improve search rankings.""",
     verbose=True
 )
 
 blog_post_creator = Agent(
     role="Blog Post Creator",
-    goal="Adapt tutorials into engaging, SEO-compliant blog posts with a focus on the repository's purpose and features.",
-    backstory="Creative writer with experience in blog formatting without losing technical details.",
+    goal="Create engaging blog posts from technical content.",
+    backstory="""Creative writer who transforms technical documentation into engaging blog posts.
+    You maintain technical accuracy while making the content more accessible and interesting.""",
     verbose=True
 )
 
@@ -103,22 +109,61 @@ async def analyze_repository(request: RepoRequest):
     try:
         # Create tasks for the crew
         analyze_repo = Task(
-            description=f"Analyze the GitHub repository at {request.repo_url}. Focus on understanding its purpose, main features, and technical implementation. Repository URL: {request.repo_url}",
+            description=f"""Create a comprehensive analysis of the repository at {request.repo_url}.
+            
+            Include the following sections:
+            1. Project Overview
+            2. Key Features
+            3. Technical Implementation
+            4. Setup Instructions
+            5. Usage Examples
+            
+            Base your analysis on standard GitHub repository structures and best practices.
+            Focus on creating valuable documentation that helps users understand the project.""",
             agent=repository_analyst
         )
 
         write_tutorial = Task(
-            description="Write a detailed tutorial based on the repository analysis. Include code examples and explanations.",
+            description="""Transform the repository analysis into a detailed tutorial.
+            
+            Structure the tutorial with:
+            1. Introduction
+            2. Prerequisites
+            3. Installation Steps
+            4. Usage Guide
+            5. Code Examples
+            6. Best Practices
+            7. Troubleshooting
+            
+            Make it easy to follow while maintaining technical accuracy.""",
             agent=tutorial_writer
         )
 
         optimize_seo = Task(
-            description="Optimize the tutorial content for SEO while maintaining technical accuracy.",
+            description="""Optimize the tutorial for search engines while preserving technical accuracy.
+            
+            Focus on:
+            1. Title optimization
+            2. Header structure
+            3. Keyword placement
+            4. Meta description
+            5. Content organization
+            
+            Ensure the technical content remains accurate and valuable.""",
             agent=seo_specialist
         )
 
         create_blog = Task(
-            description="Transform the SEO-optimized tutorial into a well-structured blog post.",
+            description="""Transform the SEO-optimized tutorial into an engaging blog post.
+            
+            Include:
+            1. Engaging introduction
+            2. Clear sections
+            3. Code examples
+            4. Practical tips
+            5. Conclusion with next steps
+            
+            Make it interesting while keeping the technical details accurate.""",
             agent=blog_post_creator
         )
 
