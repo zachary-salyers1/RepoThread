@@ -103,7 +103,7 @@ async def analyze_repository(request: RepoRequest):
     try:
         # Create tasks for the crew
         analyze_repo = Task(
-            description=f"Analyze the GitHub repository at {request.repo_url}. Focus on understanding its purpose, main features, and technical implementation.",
+            description=f"Analyze the GitHub repository at {request.repo_url}. Focus on understanding its purpose, main features, and technical implementation. Repository URL: {request.repo_url}",
             agent=repository_analyst
         )
 
@@ -130,11 +130,7 @@ async def analyze_repository(request: RepoRequest):
         )
 
         # Execute the crew's tasks
-        result = crew.kickoff(
-            context={
-                "repo_url": request.repo_url
-            }
-        )
+        result = crew.kickoff()
 
         # Convert CrewAI output to string
         blog_content = str(result.raw) if hasattr(result, 'raw') else str(result)
@@ -149,7 +145,9 @@ async def convert_to_thread(request: BlogRequest):
     try:
         # Create tasks for the crew
         analyze_content = Task(
-            description=f"Analyze this blog post and break it down into {request.num_tweets} tweets. Focus on maintaining coherence while fitting Twitter's character limit.",
+            description=f"""Analyze this blog post and break it down into {request.num_tweets} tweets. 
+            Focus on maintaining coherence while fitting Twitter's character limit.
+            Blog content to analyze: {request.blog_content}""",
             agent=content_analyst
         )
 
@@ -161,12 +159,7 @@ async def convert_to_thread(request: BlogRequest):
         )
 
         # Execute the crew's tasks
-        result = crew.kickoff(
-            context={
-                "blog_content": request.blog_content,
-                "num_tweets": request.num_tweets
-            }
-        )
+        result = crew.kickoff()
 
         # Convert CrewAI output to string
         thread_content = str(result.raw) if hasattr(result, 'raw') else str(result)
